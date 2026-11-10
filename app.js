@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const $ = (id) => document.getElementById(id);
   const store = {
     get(key, fallback) {
@@ -11,7 +11,7 @@
   };
 
   const DEFAULT_SETTINGS = {
-    vatReg: false, vatRate: 20, ad: 0, adMode: 'gbp', ship: 0.6, feePct: 0, feeFixed: 0, target: 30,
+    vatReg: false, vatRate: 20, ad: 0, adMode: 'gbp', ship: 0.6, feePct: 0, feeFixed: 0, target: 30, sellMode: 'gbp',
     sheetUrl: '', sheetKey: '',
   };
   let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('sp.settings', {}));
@@ -59,6 +59,7 @@
     const f = {};
     F.forEach((k) => (f[k] = $(k).value));
     f.adMode = $('adMode').dataset.mode;
+    f.sellMode = $('sellMode').dataset.mode;
     return f;
   }
 
@@ -73,11 +74,13 @@
     const unitInc = packInc / units;
     const unitCost = settings.vatReg ? unitEx : unitInc;
 
-    const sell = num(f.sell);
+    const ship = num(f.ship);
+    // Sell price: either typed in £, or buy cost + shipping plus a mark-up %
+    const markupBase = unitCost + ship;
+    const sell = f.sellMode === 'pct' ? (unitCost > 0 ? markupBase * (1 + num(f.sell) / 100) : 0) : num(f.sell);
     const feeP = num(f.feePct) / 100;
     const adP = f.adMode === 'pct' ? num(f.ad) / 100 : 0;
     const adFixed = f.adMode === 'pct' ? 0 : num(f.ad);
-    const ship = num(f.ship);
     const fixedFee = num(f.feeFixed);
 
     const vatOnSale = settings.vatReg ? sell - sell / v : 0;
@@ -96,7 +99,7 @@
       units, qty, packEx, packInc, unitEx, unitInc, unitCost, sell, vatOnSale, fees, ad, ship,
       profit, margin, roi, batchProfit: profit * units * qty,
       breakEven: priceFor(0), targetPrice: priceFor(num(settings.target) / 100),
-      k, fixedCosts,
+      k, fixedCosts, markupBase, markupPct: f.sellMode === 'pct' ? num(f.sell) : (markupBase ? (sell / markupBase - 1) * 100 : NaN),
       hasCost: unitCost > 0, hasSell: sell > 0,
     };
   }
@@ -107,6 +110,12 @@
     $('outUnit').textContent = r.hasCost
       ? (settings.vatReg ? `${gbp(r.unitInc)} inc · ${gbp(r.unitEx)} ex VAT` : `${gbp(r.unitInc)} inc VAT`)
       : '–';
+    const pctMode = f.sellMode === 'pct';
+    $('sellCalcLine').hidden = !pctMode;
+    if (pctMode) {
+      $('sellCalcTxt').textContent = r.hasCost ? `${gbp(r.markupBase)} cost + ship + ${num(f.sell)}% =` : 'Sell price';
+      $('sellCalcOut').textContent = r.hasCost ? gbp(r.sell) : 'enter a buy price';
+    }
     const p = $('outProfit');
     const show = r.hasCost && r.hasSell;
     if (show) {
@@ -168,13 +177,39 @@
       sell = r.k > 0 ? (r.fixedCosts + profitPerUnit) / r.k : NaN;
     }
     if (!Number.isFinite(sell) || sell <= 0) { toast('That margin isn’t possible with these fees'); return; }
-    $('sell').value = sell.toFixed(2);
+    setSellValue(sell, r.markupBase);
     render();
+  }
+  // Put a £ sell price into the sell box, converting to a mark-up % if in % mode
+  function setSellValue(sell, markupBase) {
+    if ($('sellMode').dataset.mode === 'pct') {
+      $('sell').value = markupBase > 0 ? round2((sell / markupBase - 1) * 100).toString() : '';
+    } else {
+      $('sell').value = sell.toFixed(2);
+    }
   }
   ['outMargin', 'outRoi', 'outBatch'].forEach((id) => {
     $(id).addEventListener('input', () => sellFromBox(id));
     $(id).addEventListener('focus', () => $(id).select());
     $(id).addEventListener('blur', render);
+  });
+
+  function setSellMode(mode) {
+    const b = $('sellMode');
+    b.dataset.mode = mode;
+    b.textContent = mode === 'pct' ? '%' : '£';
+    $('sellLbl').textContent = mode === 'pct' ? 'Mark-up on buy cost + shipping (%)' : 'Sell price per unit (£)';
+    $('sell').placeholder = mode === 'pct' ? '20' : '0.00';
+  }
+  $('sellMode').addEventListener('click', () => {
+    // Keep the same sell price when switching between £ and %
+    const before = calc(readForm());
+    const next = $('sellMode').dataset.mode === 'pct' ? 'gbp' : 'pct';
+    setSellMode(next);
+    if (before.hasSell) setSellValue(before.sell, before.markupBase);
+    settings.sellMode = next;
+    store.set('sp.settings', settings);
+    render();
   });
 
   function setAdMode(mode) {
@@ -196,8 +231,7 @@
     $('feePct').value = settings.feePct || '';
     $('feeFixed').value = settings.feeFixed || '';
     setAdMode(settings.adMode);
-    $('ocrResult').hidden = true;
-    $('ocrStatus').hidden = true;
+    setSellMode(settings.sellMode || 'gbp');
     render();
   }
   $('clearBtn').addEventListener('click', resetForm);
@@ -212,7 +246,7 @@
       date: new Date().toISOString(),
       name: f.name.trim(), itemNo: f.itemNo.trim(),
       packEx: round2(r.packEx), packInc: round2(r.packInc), units: r.units, qty: r.qty,
-      unitCost: round2(r.unitCost), sell: round2(r.sell),
+      unitCost: round2(r.unitCost), sell: round2(r.sell), sellMode: f.sellMode, markup: round2(r.markupPct || 0),
       ad: num(f.ad), adMode: f.adMode, ship: num(f.ship), feePct: num(f.feePct), feeFixed: num(f.feeFixed),
       profit: round2(r.profit), margin: round2(r.margin || 0), roi: round2(r.roi || 0),
       vatReg: settings.vatReg, synced: false,
@@ -222,91 +256,6 @@
     toast('Added to list');
     resetForm();
   });
-
-  // ---------- scanning ----------
-  $('scanBtn').addEventListener('click', () => $('photoInput').click());
-  $('photoInput').addEventListener('change', async (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    const status = $('ocrStatus');
-    status.hidden = false;
-    status.textContent = 'Reading label…';
-    $('scanBtn').disabled = true;
-    try {
-      const res = await ShelfOCR.readLabel(file, num(settings.vatRate), (m) => {
-        if (m.status === 'recognizing text') status.textContent = `Reading label… ${Math.round(m.progress * 100)}%`;
-        else if (m.status) status.textContent = m.status.replace(/^./, (c) => c.toUpperCase()) + '…';
-      });
-      applyScan(res);
-    } catch (err) {
-      console.error(err);
-      status.textContent = 'Could not read the label. ' + (navigator.onLine ? '' : 'If this is the first scan, open Settings on Wi-Fi and tap “Prepare scanner”. ') + 'You can type the price instead.';
-    } finally {
-      $('scanBtn').disabled = false;
-    }
-  });
-
-  function applyScan(res) {
-    const status = $('ocrStatus');
-    const filled = [];
-    if (res.ex) { $('packEx').value = res.ex.toFixed(2); $('packInc').value = (res.inc || round2(res.ex * vatMult())).toFixed(2); filled.push('price'); }
-    else if (res.inc) { $('packInc').value = res.inc.toFixed(2); $('packEx').value = round2(res.inc / vatMult()).toFixed(2); filled.push('price'); }
-    if (res.itemNo && !$('itemNo').value) { $('itemNo').value = res.itemNo; filled.push('item no.'); }
-    if (res.name && !$('name').value) { $('name').value = res.name; filled.push('name'); }
-    if (res.units && (num($('units').value) <= 1)) { $('units').value = res.units; filled.push(res.unitPrice ? `pack size (${res.units}, from unit price £${res.unitPrice})` : 'pack size'); }
-    else if (res.unitPrice && !res.units) filled.push(`nothing from the unit price £${res.unitPrice} – tap it below and choose “Use as unit price”`);
-    status.textContent = res.prices.length
-      ? `Filled in ${filled.join(', ') || 'nothing'}. Check it matches the label.`
-      : 'No prices found. Try again closer, with the label flat and well lit.';
-
-    const chips = $('priceChips');
-    chips.innerHTML = '';
-    res.prices.forEach((p) => {
-      const c = document.createElement('button');
-      c.type = 'button';
-      c.className = 'chip';
-      const hintText = { ex: 'ex VAT', inc: 'inc VAT', unit: 'unit price', weight: 'per kg/litre' }[p.hint] || '';
-      c.innerHTML = `£${p.value < 1 && String(p.value).split('.')[1]?.length === 3 ? p.value.toFixed(3) : p.value.toFixed(2)}${hintText ? ` <small>${hintText}</small>` : ''}`;
-      c.addEventListener('click', () => choosePrice(p.value, c));
-      chips.appendChild(c);
-    });
-    const lines = $('ocrLines');
-    lines.innerHTML = '';
-    res.lines.forEach((l) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = l;
-      b.addEventListener('click', () => { $('name').value = l; render(); toast('Name set'); });
-      lines.appendChild(b);
-    });
-    $('ocrResult').hidden = false;
-    render();
-  }
-
-  function choosePrice(value, chipEl) {
-    const existing = document.querySelector('.chip-menu');
-    if (existing) existing.remove();
-    const menu = document.createElement('div');
-    menu.className = 'chip-menu';
-    const opts = [
-      ['Use as ex VAT', () => { $('packEx').value = value.toFixed(2); $('packInc').value = round2(value * vatMult()).toFixed(2); }],
-      ['Use as inc VAT', () => { $('packInc').value = value.toFixed(2); $('packEx').value = round2(value / vatMult()).toFixed(2); }],
-      ['Use as unit price', () => {
-        const n = ShelfOCR.unitsFromUnitPrice(value, num($('packEx').value), num($('packInc').value));
-        if (n) $('units').value = n;
-        else toast('Doesn’t divide into the pack price – set units by hand');
-      }],
-      ['Use as sell price', () => { $('sell').value = value.toFixed(2); }],
-    ];
-    opts.forEach(([label, fn]) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn ghost'; b.textContent = label;
-      b.addEventListener('click', () => { fn(); menu.remove(); render(); });
-      menu.appendChild(b);
-    });
-    chipEl.after(menu);
-  }
 
   // ---------- list ----------
   function updateBadge() {
@@ -368,7 +317,8 @@
     $('name').value = i.name; $('itemNo').value = i.itemNo;
     $('packEx').value = i.packEx.toFixed(2); $('packInc').value = i.packInc.toFixed(2);
     $('units').value = i.units; $('qty').value = i.qty;
-    $('sell').value = i.sell ? i.sell.toFixed(2) : '';
+    setSellMode(i.sellMode || 'gbp');
+    $('sell').value = i.sellMode === 'pct' ? (i.markup ?? '') : (i.sell ? i.sell.toFixed(2) : '');
     $('ad').value = i.ad || ''; setAdMode(i.adMode);
     $('ship').value = i.ship || ''; $('feePct').value = i.feePct || ''; $('feeFixed').value = i.feeFixed || '';
     render();
@@ -442,8 +392,8 @@
 
   $('csvBtn').addEventListener('click', async () => {
     if (!items.length) { toast('List is empty'); return; }
-    const head = ['Date', 'Item No', 'Name', 'Packs', 'Units/Pack', 'Stock Added', 'Pack ex VAT', 'Pack inc VAT', 'Unit Cost', 'Sell', 'Ad', 'Ad Type', 'Ship', 'Fee %', 'Fixed Fee', 'Profit/Unit', 'Margin %', 'ROI %'];
-    const rows = items.map((i) => [i.date.slice(0, 10), i.itemNo, i.name, i.qty, i.units, i.qty * i.units, i.packEx, i.packInc, i.unitCost, i.sell, i.ad, i.adMode === 'pct' ? '%' : '£', i.ship, i.feePct, i.feeFixed, i.profit, i.margin, i.roi]);
+    const head = ['Date', 'Item No', 'Name', 'Packs', 'Units/Pack', 'Stock Added', 'Pack ex VAT', 'Pack inc VAT', 'Unit Cost', 'Sell', 'Mark-up %', 'Ad', 'Ad Type', 'Ship', 'Fee %', 'Fixed Fee', 'Profit/Unit', 'Margin %', 'ROI %'];
+    const rows = items.map((i) => [i.date.slice(0, 10), i.itemNo, i.name, i.qty, i.units, i.qty * i.units, i.packEx, i.packInc, i.unitCost, i.sell, i.markup ?? '', i.ad, i.adMode === 'pct' ? '%' : '£', i.ship, i.feePct, i.feeFixed, i.profit, i.margin, i.roi]);
     const csv = [head, ...rows].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const file = new File([csv], `shelfprice-${new Date().toISOString().slice(0, 10)}.csv`, { type: 'text/csv' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -478,32 +428,6 @@
   }
   Object.keys(S).forEach((id) => $(id).addEventListener('change', saveSettings));
 
-  $('warmOcrBtn').addEventListener('click', async () => {
-    const s = $('warmStatus');
-    $('warmOcrBtn').disabled = true;
-    s.textContent = 'Downloading scanner…';
-    try {
-      await ShelfOCR.warmUp((m) => { if (m.status) s.textContent = `${m.status} ${m.progress ? Math.round(m.progress * 100) + '%' : ''}`; });
-      if ('caches' in window) {
-        // Make sure every scanner file is stored, even ones this phone's engine didn't need.
-        const c = await caches.open('shelfprice-ocr');
-        const files = ['tesseract.min.js', 'worker.min.js', 'lang/eng.traineddata',
-          'core/tesseract-core-relaxedsimd-lstm.wasm.js', 'core/tesseract-core-simd-lstm.wasm.js', 'core/tesseract-core-lstm.wasm.js'];
-        for (const f of files) {
-          const url = new URL('vendor/tesseract/' + f, document.baseURI).href;
-          if (!(await c.match(url))) await c.add(url);
-        }
-      }
-      store.set('sp.ocrReady', true);
-      s.textContent = '✓ Scanner ready – works offline now.';
-    } catch (err) {
-      console.error(err);
-      s.textContent = 'Download failed: ' + err.message + '. Try again on Wi-Fi.';
-    } finally {
-      $('warmOcrBtn').disabled = false;
-    }
-  });
-
   // ---------- online status ----------
   function updateNet() {
     $('netStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
@@ -519,13 +443,13 @@
     F.forEach((k) => { if (draft[k] != null) $(k).value = draft[k]; });
     if (!num(draft.ship) && settings.ship) $('ship').value = settings.ship.toFixed(2);
     setAdMode(draft.adMode || settings.adMode);
+    setSellMode(draft.sellMode || settings.sellMode || 'gbp');
     render();
   } else {
     resetForm();
   }
   updateBadge();
   updateNet();
-  if (store.get('sp.ocrReady', false)) $('warmStatus').textContent = '✓ Scanner ready – works offline.';
   $('versionLbl').textContent = 'ShelfPrice v' + APP_VERSION;
 
   if ('serviceWorker' in navigator) {

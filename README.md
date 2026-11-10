@@ -2,15 +2,14 @@
 
 An iPhone app (installable web app) for checking whether stock is worth buying, made for use inside Costco with no signal.
 
-- **Scan a price label** – reads the ex-VAT / inc-VAT price, item number, name and pack size from a photo. Runs entirely on the phone, no internet needed.
-- **Calculate** – unit price, ad cost, shipping, platform fees → profit per unit, margin, ROI, batch profit, break-even price and price for your target margin. Handles VAT-registered and non-registered.
+- **Calculate** – unit price, ad cost, shipping (default £0.60), platform fees. Sell price can be typed in £ or as a mark-up % on buy cost + shipping → profit per unit, margin, ROI, batch profit, break-even price and price for your target margin. Handles VAT-registered and non-registered.
 - **List** – add products to a list stored on the phone. When you're back online, upload it to Google Sheets: every purchase is logged and stock quantities are updated.
 
 ## Install on iPhone
 
 1. Open the app's web address in **Safari** (on Wi-Fi).
 2. Tap **Share → Add to Home Screen**.
-3. Open it from the home screen, go to **Settings → Prepare scanner for offline use** and wait for the tick.
+3. Open it once from the home screen while online.
 
 It now works fully offline.
 
@@ -37,6 +36,6 @@ ROI         = profit / unit cost
 * only if VAT registered: sell × VAT/(100+VAT), i.e. 1/6 at 20%
 ```
 
-Ad cost can be £ per unit or % of sell price (tap the £/% button).
+In % mode: sell = (unit cost + shipping) × (1 + mark-up%).
 
-Label reading uses [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache 2.0), bundled in `vendor/`.
+Ad cost can be £ per unit or % of sell price (tap the £/% button).

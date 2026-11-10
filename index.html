@@ -25,20 +25,6 @@
     <!-- ============ CALCULATOR ============ -->
     <section id="tab-calc" class="tab active">
       <div class="card">
-        <button id="scanBtn" class="btn primary big" type="button">📷 Scan price label</button>
-        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
-        <div id="ocrStatus" class="muted small" hidden></div>
-        <div id="ocrResult" hidden>
-          <p class="small muted">Tap a price to use it. Tap a line of text to use it as the product name.</p>
-          <div id="priceChips" class="chips"></div>
-          <details>
-            <summary class="small">Text found on label</summary>
-            <div id="ocrLines" class="ocr-lines"></div>
-          </details>
-        </div>
-      </div>
-
-      <div class="card">
         <h2>Product</h2>
         <label>Name<input id="name" type="text" autocomplete="off" placeholder="e.g. Kirkland AA Batteries 48pk"></label>
         <label>Costco item no.<input id="itemNo" type="text" inputmode="numeric" autocomplete="off" placeholder="optional"></label>
@@ -57,7 +43,13 @@
 
       <div class="card">
         <h2>Selling</h2>
-        <label>Sell price per unit (£)<input id="sell" type="text" inputmode="decimal" placeholder="0.00"></label>
+        <label><span id="sellLbl">Sell price per unit</span>
+          <div class="input-unit">
+            <input id="sell" type="text" inputmode="decimal" placeholder="0.00">
+            <button id="sellMode" class="unit-toggle" type="button" data-mode="gbp">£</button>
+          </div>
+        </label>
+        <div class="stat-line" id="sellCalcLine" hidden><span id="sellCalcTxt"></span><strong id="sellCalcOut">–</strong></div>
         <div class="row">
           <label>Ad cost
             <div class="input-unit">
@@ -155,12 +147,6 @@
           </ol>
         </details>
       </div>
-      <div class="card">
-        <h2>Offline label scanning</h2>
-        <p class="small muted">The text reader is about 17&nbsp;MB. Prepare it once on Wi-Fi so scanning works in-store with no signal.</p>
-        <button id="warmOcrBtn" class="btn ghost" type="button">Prepare scanner for offline use</button>
-        <div id="warmStatus" class="small muted"></div>
-      </div>
       <p class="center small muted" id="versionLbl"></p>
     </section>
   </main>
@@ -173,8 +159,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="vendor/tesseract/tesseract.min.js" defer></script>
-  <script src="ocr.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

@@ -106,19 +106,6 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .breakdown { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
 .breakdown div { display: flex; justify-content: space-between; padding: 2px 0; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-.chip {
-  background: var(--chip); border: 1px solid var(--line); color: var(--text);
-  border-radius: 99px; padding: 8px 12px; font-size: 16px; font-weight: 600;
-}
-.chip small { font-weight: 400; color: var(--muted); }
-.chip-menu { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
-.ocr-lines { margin-top: 6px; }
-.ocr-lines button {
-  display: block; width: 100%; text-align: left; background: none; border: 0;
-  border-bottom: 1px solid var(--line); padding: 8px 2px; color: var(--text); font-size: 15px;
-}
-
 .list-head { display: flex; justify-content: space-between; align-items: baseline; }
 .item { position: relative; }
 .item .title { font-weight: 700; font-size: 17px; padding-right: 70px; overflow-wrap: anywhere; }
@@ -160,3 +147,4 @@ details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--accent); }
 ol { padding-left: 20px; }
 code { font-size: 12px; background: var(--chip); padding: 1px 4px; border-radius: 4px; }
+#sellCalcLine { margin-bottom: 12px; padding-bottom: 4px; }
