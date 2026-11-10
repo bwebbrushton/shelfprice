@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ShelfPrice</title>
+  <meta name="description" content="Offline profit calculator for stock bought in store">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShelfPrice">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ShelfPrice</h1>
+    <span id="netStatus" class="pill">…</span>
+  </header>
+
+  <main>
+    <!-- ============ CALCULATOR ============ -->
+    <section id="tab-calc" class="tab active">
+      <div class="card">
+        <button id="scanBtn" class="btn primary big" type="button">📷 Scan price label</button>
+        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+        <div id="ocrStatus" class="muted small" hidden></div>
+        <div id="ocrResult" hidden>
+          <p class="small muted">Tap a price to use it. Tap a line of text to use it as the product name.</p>
+          <div id="priceChips" class="chips"></div>
+          <details>
+            <summary class="small">Text found on label</summary>
+            <div id="ocrLines" class="ocr-lines"></div>
+          </details>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Product</h2>
+        <label>Name<input id="name" type="text" autocomplete="off" placeholder="e.g. Kirkland AA Batteries 48pk"></label>
+        <label>Costco item no.<input id="itemNo" type="text" inputmode="numeric" autocomplete="off" placeholder="optional"></label>
+      </div>
+
+      <div class="card">
+        <h2>Buy price</h2>
+        <div class="row">
+          <label>Pack price ex VAT (£)<input id="packEx" type="text" inputmode="decimal" placeholder="0.00"></label>
+          <label>Pack price inc VAT (£)<input id="packInc" type="text" inputmode="decimal" placeholder="0.00"></label>
+        </div>
+        <div class="row">
+          <label>Units in pack<input id="units" type="text" inputmode="numeric" value="1"></label>
+          <label>Packs buying<input id="qty" type="text" inputmode="numeric" value="1"></label>
+        </div>
+        <div class="stat-line"><span>Unit price</span><strong id="outUnit">–</strong></div>
+      </div>
+
+      <div class="card">
+        <h2>Selling</h2>
+        <label>Sell price per unit (£)<input id="sell" type="text" inputmode="decimal" placeholder="0.00"></label>
+        <div class="row">
+          <label>Ad cost
+            <div class="input-unit">
+              <input id="ad" type="text" inputmode="decimal" placeholder="0">
+              <button id="adMode" class="unit-toggle" type="button" data-mode="gbp">£</button>
+            </div>
+          </label>
+          <label>Ship cost / unit (£)<input id="ship" type="text" inputmode="decimal" placeholder="0.00"></label>
+        </div>
+        <div class="row">
+          <label>Platform fee %<input id="feePct" type="text" inputmode="decimal" placeholder="0"></label>
+          <label>Fixed fee / packaging (£)<input id="feeFixed" type="text" inputmode="decimal" placeholder="0.00"></label>
+        </div>
+      </div>
+
+      <div class="card results" id="results">
+        <h2>Profit per unit</h2>
+        <div class="profit" id="outProfit">–</div>
+        <div class="grid3">
+          <div><span>Margin</span><strong id="outMargin">–</strong></div>
+          <div><span>ROI</span><strong id="outRoi">–</strong></div>
+          <div><span>Batch profit</span><strong id="outBatch">–</strong></div>
+        </div>
+        <div class="breakdown" id="breakdown"></div>
+        <div class="stat-line"><span>Break-even sell price</span><strong id="outBreakEven">–</strong></div>
+        <div class="stat-line"><span>Price for <span id="targetLbl">30</span>% margin</span><strong id="outTarget">–</strong></div>
+      </div>
+
+      <div class="actions">
+        <button id="addBtn" class="btn primary big" type="button">＋ Add to list</button>
+        <button id="clearBtn" class="btn ghost" type="button">Clear</button>
+      </div>
+    </section>
+
+    <!-- ============ LIST ============ -->
+    <section id="tab-list" class="tab">
+      <div class="card">
+        <div class="list-head">
+          <h2>Stock list</h2>
+          <span id="listSummary" class="muted small"></span>
+        </div>
+        <div class="actions tight">
+          <button id="syncBtn" class="btn primary" type="button">⬆ Upload to Google Sheets</button>
+          <button id="csvBtn" class="btn ghost" type="button">Export CSV</button>
+        </div>
+        <div id="syncStatus" class="small muted"></div>
+      </div>
+      <div id="listItems"></div>
+      <p id="listEmpty" class="muted center">No items yet. Scan or type a product, then tap “Add to list”.</p>
+      <div class="actions">
+        <button id="clearSyncedBtn" class="btn ghost" type="button">Remove uploaded items</button>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="tab-settings" class="tab">
+      <div class="card">
+        <h2>Tax</h2>
+        <label class="switch"><input id="setVatReg" type="checkbox"> I'm VAT registered</label>
+        <p class="small muted">On: your cost is the ex-VAT price and 1/6 of each sale goes to HMRC. Off: your cost is the inc-VAT price and you keep the full sell price.</p>
+        <label>VAT rate %<input id="setVatRate" type="text" inputmode="decimal"></label>
+      </div>
+      <div class="card">
+        <h2>Defaults for new products</h2>
+        <div class="row">
+          <label>Ad cost<input id="setAd" type="text" inputmode="decimal"></label>
+          <label>Ad cost type
+            <select id="setAdMode"><option value="gbp">£ per unit</option><option value="pct">% of sell price</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Ship cost / unit (£)<input id="setShip" type="text" inputmode="decimal"></label>
+          <label>Platform fee %<input id="setFeePct" type="text" inputmode="decimal"></label>
+        </div>
+        <div class="row">
+          <label>Fixed fee / packaging (£)<input id="setFeeFixed" type="text" inputmode="decimal"></label>
+          <label>Target margin %<input id="setTarget" type="text" inputmode="decimal"></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Google Sheets</h2>
+        <label>Apps Script web app URL<input id="setSheetUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+        <label>Secret key (must match the script)<input id="setSheetKey" type="text" autocomplete="off"></label>
+        <button id="testSheetBtn" class="btn ghost" type="button">Test connection</button>
+        <div id="testSheetStatus" class="small muted"></div>
+        <details class="small">
+          <summary>How to set this up (5 minutes)</summary>
+          <ol>
+            <li>Make a new Google Sheet.</li>
+            <li>In it, open <b>Extensions → Apps Script</b>.</li>
+            <li>Delete what's there and paste in the contents of <code>google-apps-script/Code.gs</code> from the app's GitHub repo. Change <code>SECRET</code> at the top to any password.</li>
+            <li>Click <b>Deploy → New deployment</b>, choose type <b>Web app</b>, Execute as <b>Me</b>, Who has access <b>Anyone</b>. Click Deploy and allow access.</li>
+            <li>Copy the Web app URL into the box above and type the same secret. Tap Test connection.</li>
+          </ol>
+        </details>
+      </div>
+      <div class="card">
+        <h2>Offline label scanning</h2>
+        <p class="small muted">The text reader is about 17&nbsp;MB. Prepare it once on Wi-Fi so scanning works in-store with no signal.</p>
+        <button id="warmOcrBtn" class="btn ghost" type="button">Prepare scanner for offline use</button>
+        <div id="warmStatus" class="small muted"></div>
+      </div>
+      <p class="center small muted" id="versionLbl"></p>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-tab="calc" class="active" type="button"><span>🧮</span>Calculate</button>
+    <button data-tab="list" type="button"><span>📋</span>List <b id="listBadge" class="badge" hidden></b></button>
+    <button data-tab="settings" type="button"><span>⚙️</span>Settings</button>
+  </nav>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/tesseract/tesseract.min.js" defer></script>
+  <script src="ocr.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

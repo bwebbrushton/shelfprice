@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f766e"/>
+  <g transform="translate(256 262) rotate(-12)">
+    <path d="M-150 -95 h210 l90 95 -90 95 h-210 z" fill="#ffffff"/>
+    <circle cx="-110" cy="0" r="20" fill="#0f766e"/>
+    <text x="10" y="34" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="104" fill="#0f766e">£</text>
+  </g>
+</svg>
