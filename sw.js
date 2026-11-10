@@ -1,5 +1,5 @@
 // Offline support: the app shell and the label scanner are stored on the phone.
-const APP_CACHE = 'shelfprice-app-v1';
+const APP_CACHE = 'shelfprice-app-v2';
 const OCR_CACHE = 'shelfprice-ocr'; // big files; kept across app updates
 
 const APP_FILES = [

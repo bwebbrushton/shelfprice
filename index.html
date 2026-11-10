@@ -46,10 +46,8 @@
 
       <div class="card">
         <h2>Buy price</h2>
-        <div class="row">
-          <label>Pack price ex VAT (£)<input id="packEx" type="text" inputmode="decimal" placeholder="0.00"></label>
-          <label>Pack price inc VAT (£)<input id="packInc" type="text" inputmode="decimal" placeholder="0.00"></label>
-        </div>
+        <label>Pack price inc VAT (£)<input id="packInc" type="text" inputmode="decimal" placeholder="0.00"></label>
+        <input id="packEx" type="hidden">
         <div class="row">
           <label>Units in pack<input id="units" type="text" inputmode="numeric" value="1"></label>
           <label>Packs buying<input id="qty" type="text" inputmode="numeric" value="1"></label>
@@ -67,7 +65,7 @@
               <button id="adMode" class="unit-toggle" type="button" data-mode="gbp">£</button>
             </div>
           </label>
-          <label>Ship cost / unit (£)<input id="ship" type="text" inputmode="decimal" placeholder="0.00"></label>
+          <label>Ship cost / unit (£)<input id="ship" type="text" inputmode="decimal" placeholder="0.60"></label>
         </div>
         <div class="row">
           <label>Platform fee %<input id="feePct" type="text" inputmode="decimal" placeholder="0"></label>
@@ -79,10 +77,11 @@
         <h2>Profit per unit</h2>
         <div class="profit" id="outProfit">–</div>
         <div class="grid3">
-          <div><span>Margin</span><strong id="outMargin">–</strong></div>
-          <div><span>ROI</span><strong id="outRoi">–</strong></div>
-          <div><span>Batch profit</span><strong id="outBatch">–</strong></div>
+          <label class="box"><span>Margin %</span><input id="outMargin" type="text" inputmode="decimal" placeholder="–"></label>
+          <label class="box"><span>ROI %</span><input id="outRoi" type="text" inputmode="decimal" placeholder="–"></label>
+          <label class="box"><span>Batch profit £</span><input id="outBatch" type="text" inputmode="decimal" placeholder="–"></label>
         </div>
+        <p class="small muted" id="boxHint">Tip: type a margin, ROI or batch profit you want and the sell price is worked out for you.</p>
         <div class="breakdown" id="breakdown"></div>
         <div class="stat-line"><span>Break-even sell price</span><strong id="outBreakEven">–</strong></div>
         <div class="stat-line"><span>Price for <span id="targetLbl">30</span>% margin</span><strong id="outTarget">–</strong></div>

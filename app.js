@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const $ = (id) => document.getElementById(id);
   const store = {
     get(key, fallback) {
@@ -11,10 +11,16 @@
   };
 
   const DEFAULT_SETTINGS = {
-    vatReg: false, vatRate: 20, ad: 0, adMode: 'gbp', ship: 0, feePct: 0, feeFixed: 0, target: 30,
+    vatReg: false, vatRate: 20, ad: 0, adMode: 'gbp', ship: 0.6, feePct: 0, feeFixed: 0, target: 30,
     sheetUrl: '', sheetKey: '',
   };
   let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('sp.settings', {}));
+  // One-off: switch existing installs to the £0.60 shipping default.
+  if (!store.get('sp.shipDefault060', false)) {
+    if (!settings.ship) settings.ship = 0.6;
+    store.set('sp.settings', settings);
+    store.set('sp.shipDefault060', true);
+  }
   let items = store.get('sp.items', []);
 
   // ---------- helpers ----------
@@ -90,6 +96,7 @@
       units, qty, packEx, packInc, unitEx, unitInc, unitCost, sell, vatOnSale, fees, ad, ship,
       profit, margin, roi, batchProfit: profit * units * qty,
       breakEven: priceFor(0), targetPrice: priceFor(num(settings.target) / 100),
+      k, fixedCosts,
       hasCost: unitCost > 0, hasSell: sell > 0,
     };
   }
@@ -98,20 +105,22 @@
     const f = readForm();
     const r = calc(f);
     $('outUnit').textContent = r.hasCost
-      ? `${gbp(r.unitEx)} ex · ${gbp(r.unitInc)} inc VAT`
+      ? (settings.vatReg ? `${gbp(r.unitInc)} inc · ${gbp(r.unitEx)} ex VAT` : `${gbp(r.unitInc)} inc VAT`)
       : '–';
     const p = $('outProfit');
-    if (r.hasCost && r.hasSell) {
+    const show = r.hasCost && r.hasSell;
+    if (show) {
       p.textContent = gbp(r.profit);
       p.className = 'profit ' + (r.profit >= 0 ? 'good' : 'bad');
-      $('outMargin').textContent = pct(r.margin);
-      $('outRoi').textContent = pct(r.roi);
-      $('outBatch').textContent = gbp(r.batchProfit);
     } else {
       p.textContent = r.hasCost ? 'Enter a sell price' : 'Enter a buy price';
       p.className = 'profit';
-      $('outMargin').textContent = $('outRoi').textContent = $('outBatch').textContent = '–';
     }
+    // Don't overwrite a box while it's being typed in
+    const setBox = (id, val) => { if (document.activeElement !== $(id)) $(id).value = show && Number.isFinite(val) ? val.toFixed(id === 'outBatch' ? 2 : 1) : ''; };
+    setBox('outMargin', r.margin);
+    setBox('outRoi', r.roi);
+    setBox('outBatch', r.batchProfit);
     const rows = [
       ['Sell price', gbp(r.sell)],
       settings.vatReg ? ['VAT on sale', '−' + gbp(r.vatOnSale)] : null,
@@ -143,6 +152,31 @@
     el.addEventListener('focus', () => { if (el.inputMode === 'decimal' || el.inputMode === 'numeric') el.select(); });
   });
 
+  // Type a target into Margin / ROI / Batch profit → work out the sell price
+  function sellFromBox(id) {
+    const raw = $(id).value.trim();
+    if (raw === '' || raw === '-') return;
+    const r = calc(readForm());
+    if (!r.hasCost) { toast('Enter a buy price first'); return; }
+    const v = num(raw);
+    let profitPerUnit;
+    let sell;
+    if (id === 'outMargin') {
+      sell = r.k - v / 100 > 0 ? r.fixedCosts / (r.k - v / 100) : NaN;
+    } else {
+      profitPerUnit = id === 'outRoi' ? (v / 100) * r.unitCost : v / Math.max(1, r.units * Math.max(1, r.qty));
+      sell = r.k > 0 ? (r.fixedCosts + profitPerUnit) / r.k : NaN;
+    }
+    if (!Number.isFinite(sell) || sell <= 0) { toast('That margin isn’t possible with these fees'); return; }
+    $('sell').value = sell.toFixed(2);
+    render();
+  }
+  ['outMargin', 'outRoi', 'outBatch'].forEach((id) => {
+    $(id).addEventListener('input', () => sellFromBox(id));
+    $(id).addEventListener('focus', () => $(id).select());
+    $(id).addEventListener('blur', render);
+  });
+
   function setAdMode(mode) {
     const b = $('adMode');
     b.dataset.mode = mode;
@@ -158,7 +192,7 @@
     $('units').value = '1';
     $('qty').value = '1';
     $('ad').value = settings.ad || '';
-    $('ship').value = settings.ship || '';
+    $('ship').value = settings.ship ? num(settings.ship).toFixed(2) : '';
     $('feePct').value = settings.feePct || '';
     $('feeFixed').value = settings.feeFixed || '';
     setAdMode(settings.adMode);
@@ -220,7 +254,8 @@
     else if (res.inc) { $('packInc').value = res.inc.toFixed(2); $('packEx').value = round2(res.inc / vatMult()).toFixed(2); filled.push('price'); }
     if (res.itemNo && !$('itemNo').value) { $('itemNo').value = res.itemNo; filled.push('item no.'); }
     if (res.name && !$('name').value) { $('name').value = res.name; filled.push('name'); }
-    if (res.units && $('units').value === '1') { $('units').value = res.units; filled.push('pack size'); }
+    if (res.units && (num($('units').value) <= 1)) { $('units').value = res.units; filled.push(res.unitPrice ? `pack size (${res.units}, from unit price £${res.unitPrice})` : 'pack size'); }
+    else if (res.unitPrice && !res.units) filled.push(`nothing from the unit price £${res.unitPrice} – tap it below and choose “Use as unit price”`);
     status.textContent = res.prices.length
       ? `Filled in ${filled.join(', ') || 'nothing'}. Check it matches the label.`
       : 'No prices found. Try again closer, with the label flat and well lit.';
@@ -231,7 +266,8 @@
       const c = document.createElement('button');
       c.type = 'button';
       c.className = 'chip';
-      c.innerHTML = `£${p.value.toFixed(2)}${p.hint ? ` <small>${p.hint} VAT</small>` : ''}`;
+      const hintText = { ex: 'ex VAT', inc: 'inc VAT', unit: 'unit price', weight: 'per kg/litre' }[p.hint] || '';
+      c.innerHTML = `£${p.value < 1 && String(p.value).split('.')[1]?.length === 3 ? p.value.toFixed(3) : p.value.toFixed(2)}${hintText ? ` <small>${hintText}</small>` : ''}`;
       c.addEventListener('click', () => choosePrice(p.value, c));
       chips.appendChild(c);
     });
@@ -256,12 +292,17 @@
     const opts = [
       ['Use as ex VAT', () => { $('packEx').value = value.toFixed(2); $('packInc').value = round2(value * vatMult()).toFixed(2); }],
       ['Use as inc VAT', () => { $('packInc').value = value.toFixed(2); $('packEx').value = round2(value / vatMult()).toFixed(2); }],
+      ['Use as unit price', () => {
+        const n = ShelfOCR.unitsFromUnitPrice(value, num($('packEx').value), num($('packInc').value));
+        if (n) $('units').value = n;
+        else toast('Doesn’t divide into the pack price – set units by hand');
+      }],
       ['Use as sell price', () => { $('sell').value = value.toFixed(2); }],
     ];
     opts.forEach(([label, fn]) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'btn ghost'; b.textContent = label;
-      b.addEventListener('click', () => { fn(); menu.remove(); render(); toast(label.replace('Use as', 'Set as')); });
+      b.addEventListener('click', () => { fn(); menu.remove(); render(); });
       menu.appendChild(b);
     });
     chipEl.after(menu);
@@ -476,6 +517,7 @@
   const draft = store.get('sp.draft', null);
   if (draft) {
     F.forEach((k) => { if (draft[k] != null) $(k).value = draft[k]; });
+    if (!num(draft.ship) && settings.ship) $('ship').value = settings.ship.toFixed(2);
     setAdMode(draft.adMode || settings.adMode);
     render();
   } else {
